@@ -64,10 +64,10 @@ windows:
       layout: tiled
       panes:
         - waitForCore; ros2 run rviz2 rviz2 -d ./rviz.rviz --ros-args -p use_sim_time:=true
-  - layout:
-      layout: tiled
-      panes:
-        - waitForCore; sleep 2; ~/.i3/layout_manager.sh ./layout.json
+  # - layout:
+  #     layout: tiled
+  #     panes:
+  #       - waitForCore; sleep 2; ~/.i3/layout_manager.sh ./layout.json
 
   - vou:
       layout: tiled
