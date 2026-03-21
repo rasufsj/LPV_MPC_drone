@@ -1,0 +1,1 @@
+/home/cyrosrobot5/drone_ws/build/mrs_uav_system/ament_cmake_environment_hooks/local_setup.bash

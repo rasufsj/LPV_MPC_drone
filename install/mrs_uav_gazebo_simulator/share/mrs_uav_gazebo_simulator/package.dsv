@@ -1,0 +1,9 @@
+source;share/mrs_uav_gazebo_simulator/hook/pythonpath.ps1
+source;share/mrs_uav_gazebo_simulator/hook/pythonpath.dsv
+source;share/mrs_uav_gazebo_simulator/hook/pythonpath.sh
+source;share/mrs_uav_gazebo_simulator/hook/ament_prefix_path.ps1
+source;share/mrs_uav_gazebo_simulator/hook/ament_prefix_path.dsv
+source;share/mrs_uav_gazebo_simulator/hook/ament_prefix_path.sh
+source;../../build/mrs_uav_gazebo_simulator/share/mrs_uav_gazebo_simulator/hook/pythonpath_develop.ps1
+source;../../build/mrs_uav_gazebo_simulator/share/mrs_uav_gazebo_simulator/hook/pythonpath_develop.dsv
+source;../../build/mrs_uav_gazebo_simulator/share/mrs_uav_gazebo_simulator/hook/pythonpath_develop.sh

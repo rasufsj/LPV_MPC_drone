@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Ignorar pasta .vscode inteira (configurações locais do VS Code)
 .vscode/
 
@@ -16,3 +17,12 @@ __pycache__/
 *.swp
 *.tmp
 *.bak
+=======
+build/
+install/
+log/
+**/build/
+**/install/
+.vscode/
+__pycache__/
+>>>>>>> a7c639b5ef9cd547fcdb9d986a3f2fa31ce5007b

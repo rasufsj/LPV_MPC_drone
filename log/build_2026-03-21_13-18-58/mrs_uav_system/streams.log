@@ -1,0 +1,41 @@
+[0.371s] Invoking command in '/home/cyrosrobot5/drone_ws/build/mrs_uav_system': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/cyrosrobot5/drone_ws/install/mrs_uav_gazebo_simulator DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake /home/cyrosrobot5/drone_ws/src/mrs_uav_system/ros_packages/mrs_uav_system -DAMENT_CMAKE_SYMLINK_INSTALL=1 -DCMAKE_INSTALL_PREFIX=/home/cyrosrobot5/drone_ws/install/mrs_uav_system
+[0.430s] -- The C compiler identification is GNU 13.3.0
+[0.490s] -- The CXX compiler identification is GNU 13.3.0
+[0.509s] -- Detecting C compiler ABI info
+[0.608s] -- Detecting C compiler ABI info - done
+[0.616s] -- Check for working C compiler: /usr/bin/cc - skipped
+[0.616s] -- Detecting C compile features
+[0.616s] -- Detecting C compile features - done
+[0.629s] -- Detecting CXX compiler ABI info
+[0.736s] -- Detecting CXX compiler ABI info - done
+[0.744s] -- Check for working CXX compiler: /usr/bin/c++ - skipped
+[0.745s] -- Detecting CXX compile features
+[0.745s] -- Detecting CXX compile features - done
+[0.747s] -- Found ament_cmake: 2.5.5 (/opt/ros/jazzy/share/ament_cmake/cmake)
+[0.903s] -- Found Python3: /usr/bin/python3 (found version "3.12.3") found components: Interpreter 
+[0.978s] -- Override CMake install command with custom implementation using symlinks instead of copying resources
+[1.092s] -- Configuring done (0.7s)
+[1.094s] -- Generating done (0.0s)
+[1.095s] -- Build files have been written to: /home/cyrosrobot5/drone_ws/build/mrs_uav_system
+[1.102s] Invoked command in '/home/cyrosrobot5/drone_ws/build/mrs_uav_system' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/cyrosrobot5/drone_ws/install/mrs_uav_gazebo_simulator DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake /home/cyrosrobot5/drone_ws/src/mrs_uav_system/ros_packages/mrs_uav_system -DAMENT_CMAKE_SYMLINK_INSTALL=1 -DCMAKE_INSTALL_PREFIX=/home/cyrosrobot5/drone_ws/install/mrs_uav_system
+[1.104s] Invoking command in '/home/cyrosrobot5/drone_ws/build/mrs_uav_system': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/cyrosrobot5/drone_ws/install/mrs_uav_gazebo_simulator DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake --build /home/cyrosrobot5/drone_ws/build/mrs_uav_system -- -j12 -l12
+[1.149s] Invoked command in '/home/cyrosrobot5/drone_ws/build/mrs_uav_system' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/cyrosrobot5/drone_ws/install/mrs_uav_gazebo_simulator DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake --build /home/cyrosrobot5/drone_ws/build/mrs_uav_system -- -j12 -l12
+[1.158s] Invoking command in '/home/cyrosrobot5/drone_ws/build/mrs_uav_system': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/cyrosrobot5/drone_ws/install/mrs_uav_gazebo_simulator DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake --install /home/cyrosrobot5/drone_ws/build/mrs_uav_system
+[1.165s] -- Install configuration: ""
+[1.165s] -- Execute custom install script
+[1.166s] -- Symlinking: /home/cyrosrobot5/drone_ws/install/mrs_uav_system/share/ament_index/resource_index/package_run_dependencies/mrs_uav_system
+[1.173s] -- Symlinking: /home/cyrosrobot5/drone_ws/install/mrs_uav_system/share/ament_index/resource_index/parent_prefix_path/mrs_uav_system
+[1.182s] -- Symlinking: /home/cyrosrobot5/drone_ws/install/mrs_uav_system/share/mrs_uav_system/environment/ament_prefix_path.sh
+[1.190s] -- Symlinking: /home/cyrosrobot5/drone_ws/install/mrs_uav_system/share/mrs_uav_system/environment/ament_prefix_path.dsv
+[1.197s] -- Symlinking: /home/cyrosrobot5/drone_ws/install/mrs_uav_system/share/mrs_uav_system/environment/path.sh
+[1.205s] -- Symlinking: /home/cyrosrobot5/drone_ws/install/mrs_uav_system/share/mrs_uav_system/environment/path.dsv
+[1.213s] -- Symlinking: /home/cyrosrobot5/drone_ws/install/mrs_uav_system/share/mrs_uav_system/local_setup.bash
+[1.219s] -- Symlinking: /home/cyrosrobot5/drone_ws/install/mrs_uav_system/share/mrs_uav_system/local_setup.sh
+[1.227s] -- Symlinking: /home/cyrosrobot5/drone_ws/install/mrs_uav_system/share/mrs_uav_system/local_setup.zsh
+[1.235s] -- Symlinking: /home/cyrosrobot5/drone_ws/install/mrs_uav_system/share/mrs_uav_system/local_setup.dsv
+[1.241s] -- Symlinking: /home/cyrosrobot5/drone_ws/install/mrs_uav_system/share/mrs_uav_system/package.dsv
+[1.250s] -- Symlinking: /home/cyrosrobot5/drone_ws/install/mrs_uav_system/share/ament_index/resource_index/packages/mrs_uav_system
+[1.257s] -- Symlinking: /home/cyrosrobot5/drone_ws/install/mrs_uav_system/share/mrs_uav_system/cmake/mrs_uav_systemConfig.cmake
+[1.264s] -- Symlinking: /home/cyrosrobot5/drone_ws/install/mrs_uav_system/share/mrs_uav_system/cmake/mrs_uav_systemConfig-version.cmake
+[1.270s] -- Symlinking: /home/cyrosrobot5/drone_ws/install/mrs_uav_system/share/mrs_uav_system/package.xml
+[1.279s] Invoked command in '/home/cyrosrobot5/drone_ws/build/mrs_uav_system' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/cyrosrobot5/drone_ws/install/mrs_uav_gazebo_simulator DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake --install /home/cyrosrobot5/drone_ws/build/mrs_uav_system
