@@ -1,1 +1,0 @@
-/home/cyrosrobot5/drone_ws/build/mrs_uav_gazebo_simulator/launch/uav_ros_gz_bridge.launch.py
