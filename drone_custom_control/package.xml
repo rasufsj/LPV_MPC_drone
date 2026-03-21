@@ -4,7 +4,7 @@
   <name>drone_custom_control</name>
   <version>0.0.0</version>
   <description>TODO: Package description</description>
-  <maintainer email="icafs.30@gmail.com">cyrosrobot5</maintainer>
+  <maintainer email="rasufsj@gmail.com">cyrosrobot5</maintainer>
   <license>TODO: License declaration</license>
 
   <depend>rclpy</depend>
