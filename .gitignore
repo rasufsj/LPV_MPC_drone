@@ -1,0 +1,13 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Gazebo/ROS logs e builds
+build/
+devel/
+logs/
+.vscode/
+
+# Arquivos do Sistema
+.DS_Store
+Thumbs.db
