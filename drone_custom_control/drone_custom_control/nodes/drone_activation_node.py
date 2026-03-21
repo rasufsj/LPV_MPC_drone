@@ -46,7 +46,7 @@ class DroneActivator(Node):
 
         self.timer = self.create_timer(0.05, self.timer_callback)  # 20 Hz
 
-        self.get_logger().info("Iniciando ativação: publicando setpoint em z=0.0 (sem subir)...")
+        self.get_logger().info("Iniciando ativação: publicando setpoint em z=1.0 (hover mínimo 1m)...")
 
         self.offboard_requested = False
         self.armed_requested = False
@@ -134,7 +134,7 @@ class DroneActivator(Node):
         try:
             response = future.result()
             if response.success:
-                self.get_logger().info("Drone armado com sucesso!")
+                self.get_logger().info("Drone armado e em OFFBOARD. MPC assume o controle em 2 s")
                 self.armed_requested = True
             else:
                 self.get_logger().warn("Falha ao armar")
@@ -147,7 +147,7 @@ class DroneActivator(Node):
         if self.done:
             return
         self.done = True
-        self.get_logger().info("Ativação completa e próximo drone pronto → finalizando em 1s...")
+        self.get_logger().info("Ativação completa.")
 
         self.create_timer(1.0, self._really_shutdown)
 

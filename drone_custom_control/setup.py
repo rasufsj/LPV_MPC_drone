@@ -13,8 +13,8 @@ setup(
     ],
     install_requires=['setuptools'],
     zip_safe=True,
-    maintainer='lmnr31',
-    maintainer_email='rasufsj@gmail.com',
+    maintainer='cyrosrobot5',
+    maintainer_email='icafs.30@gmail.com',
     description='TODO: Package description',
     license='TODO: License declaration',
     extras_require={
@@ -24,8 +24,8 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'drone_activation = drone_custom_control.drone_activation:main',
-            'drone_go_forward = drone_custom_control.drone_go_forward:main',
+            'drone_activation_node = drone_custom_control.nodes.drone_activation_node:main',
+            'lpv_mpc_drone_node = drone_custom_control.nodes.lpv_mpc_drone_node:main',
         ],
     },
 )
