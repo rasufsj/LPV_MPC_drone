@@ -15,53 +15,69 @@ from mavros_msgs.msg import AttitudeTarget
 
 
 class SupportFilesDrone:
-    ''' Classe completa do Mark Misin adaptada para o seu f450 '''
     def __init__(self):
-        # === PARÂMETROS EXATOS DO SEU F450 (yaml + sdf) ===
-        Ix = 0.02375
-        Iy = 0.02375
-        Iz = 0.046875
-        m = 1.564
-        g = 9.81
-        max_thrust = 40.18
-        Jtp = 1.302e-6
-        Ts = 0.1
+        ''' Load the constants that do not change'''
+        
+        # Constants (F450)
+        Ix=0.02375 # kg*m^2
+        Iy=0.02375 # kg*m^2
+        Iz=0.046875 # kg*m^2
+        m=1.564 # kg
+        g=9.81 # m/s^2
+        max_thrust=40.18 # N
+        Jtp=1.302*10**(-6) # N*m*s^2=kg*m^2
+        Ts=0.1 # s
 
-        Q = np.matrix('10 0 0;0 10 0;0 0 10')
-        S = np.matrix('20 0 0;0 20 0;0 0 20')
-        R = np.matrix('10 0 0;0 10 0;0 0 10')
+        # Matrix weights for the cost function (They must be diagonal)
+        Q=np.matrix('10 0 0;0 10 0;0 0 10') # weights for outputs (all samples, except the last one)
+        S=np.matrix('20 0 0;0 20 0;0 0 20') # weights for the final horizon period outputs
+        R=np.matrix('10 0 0;0 10 0;0 0 10') # weights for inputs
 
-        force_constant = 0.00000012216
-        torque_constant = 0.07
-        conv = (60 / (2 * np.pi))**2
-        ct = force_constant * conv
-        cq = torque_constant * ct
-        l = 0.225
+        force_constant=0.00000012216
+        torque_constant=0.07
+        conv=(60/(2*np.pi))**2
+        
+        ct=force_constant*conv # N*s^2
+        cq=torque_constant*ct # N*m*s^2
+        l=0.225 # m
 
-        controlled_states = 3
-        hz = 4
-        innerDyn_length = 4
+        controlled_states=3 # Number of attitude outputs: Phi, Theta, Psi
+        hz = 4 # horizon period
+        
+        innerDyn_length=4 # Number of inner control loop iterations
 
-        px = np.array([-1.6 + 1.0j, -1.6 - 1.0j])
-        py = np.array([-1.6 + 1.0j, -1.6 - 1.0j])
-        pz = np.array([-3.0 + 2.0j, -3.0 - 2.0j])
+        # Complex poles
+        px=np.array([-1.8+1.5j,-1.8-1.5j])
+        py=np.array([-1.8+1.5j,-1.8-1.5j])
+        pz=np.array([-5.5+3.2j,-5.5-3.2j])
 
-        r = 2
-        f = 0.025
-        height_i = 5
-        height_f = 25
-        pos_x_y = 0
-        sub_loop = 5
-        sim_version = 1
-        drag_switch = 0
+        r=2
+        f=0.025
+        height_i=5
+        height_f=25
+        
+        pos_x_y=0 # Default: 0. Make positive x and y longer for visual purposes (1-Yes, 0-No). It does not affect the dynamics of the UAV.
+        sub_loop=5 # for animation purposes
+        sim_version=1 # Can only be 1 or 2 - depending on that, it will show you different graphs in the animation
+        
+        # Drag force:
+        drag_switch=0 # Must be either 0 or 1 (0 - drag force OFF, 1 - drag force ON)
+        
+        # Drag force coefficients [-]:
         C_D_u = 1.5
         C_D_v = 1.5
-        C_D_w = 1.5
-        A_u = 0.1
-        A_v = 0.1
-        A_w = 0.1
-        rho = 1.225
-        trajectory = 1
+        C_D_w = 2.0
+        
+        # Drag force cross-section area [m^2]
+        A_u=2*l*0.01+0.05**2
+        A_v=2*l*0.01+0.05**2
+        A_w=2*2*l*0.01+0.05**2
+        
+        # Air density
+        rho=1.225 # [kg/m^3]
+        
+        # Choose the trajectory: only from 1-9
+        trajectory=1
 
         self.constants = {
             'Ix': Ix, 'Iy': Iy, 'Iz': Iz, 'm': m, 'g': g, 'Jtp': Jtp, 'Ts': Ts,
@@ -254,16 +270,16 @@ class SupportFilesDrone:
 
         return x, x_dot, x_dot_dot, y, y_dot, y_dot_dot, z, z_dot, z_dot_dot, psiInt
 
-    def pos_controller(self, X_ref, X_dot_ref, X_dot_dot_ref, Y_ref, Y_dot_ref, Y_dot_dot_ref,
-                       Z_ref, Z_dot_ref, Z_dot_dot_ref, Psi_ref, states):
+    def pos_controller(self,X_ref,X_dot_ref,X_dot_dot_ref,Y_ref,Y_dot_ref,Y_dot_dot_ref,Z_ref,Z_dot_ref,Z_dot_dot_ref,Psi_ref,states):
         '''This function is a position controller - it computes the necessary U1 for the open loop system, and phi & theta angles for the MPC controller'''
 
         # Load the constants
-        m = self.constants['m']
-        g = self.constants['g']
-        px = self.constants['px']
-        py = self.constants['py']
-        pz = self.constants['pz']
+        m=self.constants['m']
+        g=self.constants['g']
+        px=self.constants['px']
+        py=self.constants['py']
+        pz=self.constants['pz']
+
 
         # Assign the states
         # States: [u,v,w,p,q,r,x,y,z,phi,theta,psi]
@@ -278,201 +294,243 @@ class SupportFilesDrone:
         psi = states[11]
 
         # Rotational matrix that relates u,v,w with x_dot,y_dot,z_dot
-        R_x = np.array([[1, 0, 0],[0, np.cos(phi), -np.sin(phi)],[0, np.sin(phi), np.cos(phi)]])
-        R_y = np.array([[np.cos(theta),0,np.sin(theta)],[0,1,0],[-np.sin(theta),0,np.cos(theta)]])
-        R_z = np.array([[np.cos(psi),-np.sin(psi),0],[np.sin(psi),np.cos(psi),0],[0,0,1]])
-        R_matrix = R_z @ R_y @ R_x
-        pos_vel_body = np.array([[u],[v],[w]])
-        pos_vel_fixed = R_matrix @ pos_vel_body
-        x_dot = pos_vel_fixed[0][0]
-        y_dot = pos_vel_fixed[1][0]
-        z_dot = pos_vel_fixed[2][0]
+        R_x=np.array([[1, 0, 0],[0, np.cos(phi), -np.sin(phi)],[0, np.sin(phi), np.cos(phi)]])
+        R_y=np.array([[np.cos(theta),0,np.sin(theta)],[0,1,0],[-np.sin(theta),0,np.cos(theta)]])
+        R_z=np.array([[np.cos(psi),-np.sin(psi),0],[np.sin(psi),np.cos(psi),0],[0,0,1]])
+        R_matrix=np.matmul(R_z,np.matmul(R_y,R_x))
+        pos_vel_body=np.array([[u],[v],[w]])
+        pos_vel_fixed=np.matmul(R_matrix,pos_vel_body)
+        x_dot=pos_vel_fixed[0]
+        y_dot=pos_vel_fixed[1]
+        z_dot=pos_vel_fixed[2]
 
-        # Compute the errors (scalars)
-        ex = X_ref - x
-        ex_dot = X_dot_ref - x_dot
-        ey = Y_ref - y
-        ey_dot = Y_dot_ref - y_dot
-        ez = Z_ref - z
-        ez_dot = Z_dot_ref - z_dot
+        # Compute the errors
+        ex=X_ref-x
+        ex_dot=X_dot_ref-x_dot
+        ey=Y_ref-y
+        ey_dot=Y_dot_ref-y_dot
+        ez=Z_ref-z
+        ez_dot=Z_dot_ref-z_dot
 
         # Compute the feedback constants
-        kx1 = (px[0] - (px[0] + px[1])/2)**2 - (px[0] + px[1])**2/4
-        kx2 = px[0] + px[1]
-        kx1 = kx1.real
-        kx2 = kx2.real
+        kx1=(px[0]-(px[0]+px[1])/2)**2-(px[0]+px[1])**2/4
+        kx2=px[0]+px[1]
+        kx1=kx1.real
+        kx2=kx2.real
 
-        ky1 = (py[0] - (py[0] + py[1])/2)**2 - (py[0] + py[1])**2/4
-        ky2 = py[0] + py[1]
-        ky1 = ky1.real
-        ky2 = ky2.real
+        ky1=(py[0]-(py[0]+py[1])/2)**2-(py[0]+py[1])**2/4
+        ky2=py[0]+py[1]
+        ky1=ky1.real
+        ky2=ky2.real
 
-        kz1 = (pz[0] - (pz[0] + pz[1])/2)**2 - (pz[0] + pz[1])**2/4
-        kz2 = pz[0] + pz[1]
-        kz1 = kz1.real
-        kz2 = kz2.real
+        kz1=(pz[0]-(pz[0]+pz[1])/2)**2-(pz[0]+pz[1])**2/4
+        kz2=pz[0]+pz[1]
+        kz1=kz1.real
+        kz2=kz2.real
 
         # Compute the values vx, vy, vz for the position controller
-        ux = kx1 * ex + kx2 * ex_dot
-        uy = ky1 * ey + ky2 * ey_dot
-        uz = kz1 * ez + kz2 * ez_dot
+        ux=kx1*ex+kx2*ex_dot
+        uy=ky1*ey+ky2*ey_dot
+        uz=kz1*ez+kz2*ez_dot
 
-        vx = X_dot_dot_ref - ux          # ← CORRIGIDO: sem [0]
-        vy = Y_dot_dot_ref - uy          # ← CORRIGIDO
-        vz = Z_dot_dot_ref - uz          # ← CORRIGIDO
+        vx = X_dot_dot_ref-ux
+        vy = Y_dot_dot_ref-uy
+        vz = Z_dot_dot_ref-uz
 
         # Compute phi, theta, U1
-        a = vx / (vz + g)
-        b = vy / (vz + g)
-        c = np.cos(Psi_ref)
-        d = np.sin(Psi_ref)
-        tan_theta = a * c + b * d
-        Theta_ref = np.arctan(tan_theta)
+        a=vx/(vz+g)
+        b=vy/(vz+g)
+        c=np.cos(Psi_ref)
+        d=np.sin(Psi_ref)
+        tan_theta=a*c+b*d
+        Theta_ref=np.arctan(tan_theta)
 
-        if Psi_ref >= 0:
-            Psi_ref_singularity = Psi_ref - np.floor(abs(Psi_ref)/(2*np.pi)) * 2 * np.pi
+        if Psi_ref>=0:
+            Psi_ref_singularity=Psi_ref-np.floor(abs(Psi_ref)/(2*np.pi))*2*np.pi
         else:
-            Psi_ref_singularity = Psi_ref + np.floor(abs(Psi_ref)/(2*np.pi)) * 2 * np.pi
+            Psi_ref_singularity=Psi_ref+np.floor(abs(Psi_ref)/(2*np.pi))*2*np.pi
 
-        if ((np.abs(Psi_ref_singularity) < np.pi/4 or np.abs(Psi_ref_singularity) > 7*np.pi/4) or 
-            (np.abs(Psi_ref_singularity) > 3*np.pi/4 and np.abs(Psi_ref_singularity) < 5*np.pi/4)):
-            tan_phi = np.cos(Theta_ref) * (np.tan(Theta_ref) * d - b) / c
+        if ((np.abs(Psi_ref_singularity)<np.pi/4 or np.abs(Psi_ref_singularity)>7*np.pi/4) or (np.abs(Psi_ref_singularity)>3*np.pi/4 and np.abs(Psi_ref_singularity)<5*np.pi/4)):
+            tan_phi=np.cos(Theta_ref)*(np.tan(Theta_ref)*d-b)/c
         else:
-            tan_phi = np.cos(Theta_ref) * (a - np.tan(Theta_ref) * c) / d
+            tan_phi=np.cos(Theta_ref)*(a-np.tan(Theta_ref)*c)/d
+        Phi_ref=np.arctan(tan_phi)
+        U1=(vz+g)*m/(np.cos(Phi_ref)*np.cos(Theta_ref))
 
-        Phi_ref = np.arctan(tan_phi)
-        U1 = (vz + g) * m / (np.cos(Phi_ref) * np.cos(Theta_ref))
-
-        # FLIP DE SINAL PARA O F450 + MAVROS
         return Phi_ref, Theta_ref, U1
 
     def LPV_cont_discrete(self, states, omega_total):
         '''This is an LPV model concerning the three rotational axis.'''
-        Ix = self.constants['Ix']
-        Iy = self.constants['Iy']
-        Iz = self.constants['Iz']
-        Jtp = self.constants['Jtp']
-        Ts = self.constants['Ts']
 
-        u = states[0]; v = states[1]; w = states[2]; p = states[3]; q = states[4]; r = states[5]
-        phi = states[9]; theta = states[10]; psi = states[11]
+        # Get the necessary constants
+        Ix=self.constants['Ix'] # kg*m^2
+        Iy=self.constants['Iy'] # kg*m^2
+        Iz=self.constants['Iz'] # kg*m^2
+        Jtp=self.constants['Jtp'] #N*m*s^2=kg*m^2
+        Ts=self.constants['Ts'] #s
 
-        R_x = np.array([[1,0,0],[0,np.cos(phi),-np.sin(phi)],[0,np.sin(phi),np.cos(phi)]])
-        R_y = np.array([[np.cos(theta),0,np.sin(theta)],[0,1,0],[-np.sin(theta),0,np.cos(theta)]])
-        R_z = np.array([[np.cos(psi),-np.sin(psi),0],[np.sin(psi),np.cos(psi),0],[0,0,1]])
-        R_matrix = R_z @ R_y @ R_x
-        pos_vel_fixed = R_matrix @ np.array([[u],[v],[w]])
-        x_dot = pos_vel_fixed[0][0]
-        y_dot = pos_vel_fixed[1][0]
-        z_dot = pos_vel_fixed[2][0]
+        # Assign the states
+        # States: [u,v,w,p,q,r,x,y,z,phi,theta,psi]
+        u=states[0]
+        v=states[1]
+        w=states[2]
+        p=states[3]
+        q=states[4]
+        r=states[5]
+        phi=states[9]
+        theta=states[10]
+        psi=states[11]
 
-        T_matrix = np.array([[1, np.sin(phi)*np.tan(theta), np.cos(phi)*np.tan(theta)],
-                             [0, np.cos(phi), -np.sin(phi)],
-                             [0, np.sin(phi)/np.cos(theta), np.cos(phi)/np.cos(theta)]])
-        rot_vel_fixed = T_matrix @ np.array([[p],[q],[r]])
-        phi_dot = rot_vel_fixed[0][0]
-        theta_dot = rot_vel_fixed[1][0]
-        psi_dot = rot_vel_fixed[2][0]
+        # Rotational matrix that relates u,v,w with x_dot,y_dot,z_dot
+        R_x=np.array([[1, 0, 0],[0, np.cos(phi), -np.sin(phi)],[0, np.sin(phi), np.cos(phi)]])
+        R_y=np.array([[np.cos(theta),0,np.sin(theta)],[0,1,0],[-np.sin(theta),0,np.cos(theta)]])
+        R_z=np.array([[np.cos(psi),-np.sin(psi),0],[np.sin(psi),np.cos(psi),0],[0,0,1]])
+        R_matrix=np.matmul(R_z,np.matmul(R_y,R_x))
+        pos_vel_body=np.array([[u],[v],[w]])
+        pos_vel_fixed=np.matmul(R_matrix,pos_vel_body)
+        x_dot=pos_vel_fixed[0]
+        y_dot=pos_vel_fixed[1]
+        z_dot=pos_vel_fixed[2]
+        x_dot=x_dot[0]
+        y_dot=y_dot[0]
+        z_dot=z_dot[0]
 
-        A = np.zeros((6,6))
-        B = np.zeros((6,3))
-        C = np.zeros((3,6))
-        D = np.zeros((3,3))
+        # To get phi_dot, theta_dot, psi_dot, you need the T matrix
+        # Transformation matrix that relates p,q,r with phi_dot,theta_dot,psi_dot
+        T_matrix=np.array([[1,np.sin(phi)*np.tan(theta),np.cos(phi)*np.tan(theta)],\
+            [0,np.cos(phi),-np.sin(phi)],\
+            [0,np.sin(phi)/np.cos(theta),np.cos(phi)/np.cos(theta)]])
+        rot_vel_body=np.array([[p],[q],[r]])
+        rot_vel_fixed=np.matmul(T_matrix,rot_vel_body)
+        phi_dot=rot_vel_fixed[0]
+        theta_dot=rot_vel_fixed[1]
+        psi_dot=rot_vel_fixed[2]
+        phi_dot=phi_dot[0]
+        theta_dot=theta_dot[0]
+        psi_dot=psi_dot[0]
 
-        A[0,1] = 1
-        A[1,3] = -omega_total*Jtp/Ix
-        A[1,5] = theta_dot*(Iy-Iz)/Ix
-        A[2,3] = 1
-        A[3,1] = omega_total*Jtp/Iy
-        A[3,5] = phi_dot*(Iz-Ix)/Iy
-        A[4,5] = 1
-        A[5,1] = (theta_dot/2)*(Ix-Iy)/Iz
-        A[5,3] = (phi_dot/2)*(Ix-Iy)/Iz
+        # Create the continuous LPV A, B, C, D matrices
+        A01=1
+        A13=-omega_total*Jtp/Ix
+        A15=theta_dot*(Iy-Iz)/Ix
+        A23=1
+        A31=omega_total*Jtp/Iy
+        A35=phi_dot*(Iz-Ix)/Iy
+        A45=1
+        A51=(theta_dot/2)*(Ix-Iy)/Iz
+        A53=(phi_dot/2)*(Ix-Iy)/Iz
 
-        B[1,0] = 1/Ix
-        B[3,1] = 1/Iy
-        B[5,2] = 1/Iz
+        A=np.zeros((6,6))
+        B=np.zeros((6,3))
+        C=np.zeros((3,6))
+        D=0
 
-        C[0,0] = 1
-        C[1,2] = 1
-        C[2,4] = 1
+        A[0,1]=A01
+        A[1,3]=A13
+        A[1,5]=A15
+        A[2,3]=A23
+        A[3,1]=A31
+        A[3,5]=A35
+        A[4,5]=A45
+        A[5,1]=A51
+        A[5,3]=A53
 
-        Ad = np.eye(6) + Ts * A
-        Bd = Ts * B
-        Cd = C
-        Dd = D
+        B[1,0]=1/Ix
+        B[3,1]=1/Iy
+        B[5,2]=1/Iz
+
+        C[0,0]=1
+        C[1,2]=1
+        C[2,4]=1
+
+        D=np.zeros((3,3))
+
+        # Discretize the system (Forward Euler)
+        Ad=np.identity(np.size(A,1))+Ts*A
+        Bd=Ts*B
+        Cd=C
+        Dd=D
 
         return Ad, Bd, Cd, Dd, x_dot, y_dot, z_dot, phi, phi_dot, theta, theta_dot, psi, psi_dot
 
-    def mpc_simplification(self, Ad, Bd, Cd, Dd, hz):
+    def mpc_simplification(self,Ad,Bd,Cd,Dd,hz):
         '''This function creates the compact matrices for Model Predictive Control'''
-        A_aug = np.concatenate((Ad, Bd), axis=1)
-        temp1 = np.zeros((np.size(Bd,1), np.size(Ad,1)))
-        temp2 = np.identity(np.size(Bd,1))
-        temp = np.concatenate((temp1, temp2), axis=1)
-        A_aug = np.concatenate((A_aug, temp), axis=0)
-        B_aug = np.concatenate((Bd, np.identity(np.size(Bd,1))), axis=0)
-        C_aug = np.concatenate((Cd, np.zeros((np.size(Cd,0), np.size(Bd,1)))), axis=1)
-        D_aug = Dd
+        # db - double bar
+        # dbt - double bar transpose
+        # dc - double circumflex
+        A_aug=np.concatenate((Ad,Bd),axis=1)
+        temp1=np.zeros((np.size(Bd,1),np.size(Ad,1)))
+        temp2=np.identity(np.size(Bd,1))
+        temp=np.concatenate((temp1,temp2),axis=1)
 
-        Q = self.constants['Q']
-        S = self.constants['S']
-        R = self.constants['R']
+        A_aug=np.concatenate((A_aug,temp),axis=0)
+        B_aug=np.concatenate((Bd,np.identity(np.size(Bd,1))),axis=0)
+        C_aug=np.concatenate((Cd,np.zeros((np.size(Cd,0),np.size(Bd,1)))),axis=1)
+        D_aug=Dd
 
-        CQC = np.matmul(np.transpose(C_aug), Q)
-        CQC = np.matmul(CQC, C_aug)
-        CSC = np.matmul(np.transpose(C_aug), S)
-        CSC = np.matmul(CSC, C_aug)
-        QC = np.matmul(Q, C_aug)
-        SC = np.matmul(S, C_aug)
 
-        Qdb = np.zeros((np.size(CQC,0)*hz, np.size(CQC,1)*hz))
-        Tdb = np.zeros((np.size(QC,0)*hz, np.size(QC,1)*hz))
-        Rdb = np.zeros((np.size(R,0)*hz, np.size(R,1)*hz))
-        Cdb = np.zeros((np.size(B_aug,0)*hz, np.size(B_aug,1)*hz))
-        Adc = np.zeros((np.size(A_aug,0)*hz, np.size(A_aug,1)))
+        Q=self.constants['Q']
+        S=self.constants['S']
+        R=self.constants['R']
 
-        for i in range(0, hz):
+        CQC=np.matmul(np.transpose(C_aug),Q)
+        CQC=np.matmul(CQC,C_aug)
+
+        CSC=np.matmul(np.transpose(C_aug),S)
+        CSC=np.matmul(CSC,C_aug)
+
+        QC=np.matmul(Q,C_aug)
+        SC=np.matmul(S,C_aug)
+
+
+        Qdb=np.zeros((np.size(CQC,0)*hz,np.size(CQC,1)*hz))
+        Tdb=np.zeros((np.size(QC,0)*hz,np.size(QC,1)*hz))
+        Rdb=np.zeros((np.size(R,0)*hz,np.size(R,1)*hz))
+        Cdb=np.zeros((np.size(B_aug,0)*hz,np.size(B_aug,1)*hz))
+        Adc=np.zeros((np.size(A_aug,0)*hz,np.size(A_aug,1)))
+
+        for i in range(0,hz):
             if i == hz-1:
-                Qdb[np.size(CSC,0)*i:np.size(CSC,0)*i+CSC.shape[0], np.size(CSC,1)*i:np.size(CSC,1)*i+CSC.shape[1]] = CSC
-                Tdb[np.size(SC,0)*i:np.size(SC,0)*i+SC.shape[0], np.size(SC,1)*i:np.size(SC,1)*i+SC.shape[1]] = SC
+                Qdb[np.size(CSC,0)*i:np.size(CSC,0)*i+CSC.shape[0],np.size(CSC,1)*i:np.size(CSC,1)*i+CSC.shape[1]]=CSC
+                Tdb[np.size(SC,0)*i:np.size(SC,0)*i+SC.shape[0],np.size(SC,1)*i:np.size(SC,1)*i+SC.shape[1]]=SC
             else:
-                Qdb[np.size(CQC,0)*i:np.size(CQC,0)*i+CQC.shape[0], np.size(CQC,1)*i:np.size(CQC,1)*i+CQC.shape[1]] = CQC
-                Tdb[np.size(QC,0)*i:np.size(QC,0)*i+QC.shape[0], np.size(QC,1)*i:np.size(QC,1)*i+QC.shape[1]] = QC
+                Qdb[np.size(CQC,0)*i:np.size(CQC,0)*i+CQC.shape[0],np.size(CQC,1)*i:np.size(CQC,1)*i+CQC.shape[1]]=CQC
+                Tdb[np.size(QC,0)*i:np.size(QC,0)*i+QC.shape[0],np.size(QC,1)*i:np.size(QC,1)*i+QC.shape[1]]=QC
 
-            Rdb[np.size(R,0)*i:np.size(R,0)*i+R.shape[0], np.size(R,1)*i:np.size(R,1)*i+R.shape[1]] = R
+            Rdb[np.size(R,0)*i:np.size(R,0)*i+R.shape[0],np.size(R,1)*i:np.size(R,1)*i+R.shape[1]]=R
 
-            for j in range(0, hz):
-                if j <= i:
-                    Cdb[np.size(B_aug,0)*i:np.size(B_aug,0)*i+B_aug.shape[0], np.size(B_aug,1)*j:np.size(B_aug,1)*j+B_aug.shape[1]] = np.matmul(np.linalg.matrix_power(A_aug, (i+1)-(j+1)), B_aug)
+            for j in range(0,hz):
+                if j<=i:
+                    Cdb[np.size(B_aug,0)*i:np.size(B_aug,0)*i+B_aug.shape[0],np.size(B_aug,1)*j:np.size(B_aug,1)*j+B_aug.shape[1]]=np.matmul(np.linalg.matrix_power(A_aug,((i+1)-(j+1))),B_aug)
 
-            Adc[np.size(A_aug,0)*i:np.size(A_aug,0)*i+A_aug.shape[0], 0:0+A_aug.shape[1]] = np.linalg.matrix_power(A_aug, i+1)
+            Adc[np.size(A_aug,0)*i:np.size(A_aug,0)*i+A_aug.shape[0],0:0+A_aug.shape[1]]=np.linalg.matrix_power(A_aug,i+1)
 
-        Hdb = np.matmul(np.transpose(Cdb), Qdb)
-        Hdb = np.matmul(Hdb, Cdb) + Rdb
+        Hdb=np.matmul(np.transpose(Cdb),Qdb)
+        Hdb=np.matmul(Hdb,Cdb)+Rdb
 
-        temp = np.matmul(np.transpose(Adc), Qdb)
-        temp = np.matmul(temp, Cdb)
-        temp2 = np.matmul(-Tdb, Cdb)
-        Fdbt = np.concatenate((temp, temp2), axis=0)
+        temp=np.matmul(np.transpose(Adc),Qdb)
+        temp=np.matmul(temp,Cdb)
 
-        return Hdb, Fdbt, Cdb, Adc
+        temp2=np.matmul(-Tdb,Cdb)
+        Fdbt=np.concatenate((temp,temp2),axis=0)
 
-    def open_loop_new_states(self, states, omega_total, U1, U2, U3, U4):
+        return Hdb,Fdbt,Cdb,Adc
+
+    def open_loop_new_states(self,states,omega_total,U1,U2,U3,U4):
         '''This function computes the new state vector for one sample time later'''
 
         # Get the necessary constants
-        Ix = self.constants['Ix']
-        Iy = self.constants['Iy']
-        Iz = self.constants['Iz']
-        m = self.constants['m']
-        g = self.constants['g']
-        Jtp = self.constants['Jtp']
-        Ts = self.constants['Ts']
+        Ix=self.constants['Ix']
+        Iy=self.constants['Iy']
+        Iz=self.constants['Iz']
+        m=self.constants['m']
+        g=self.constants['g']
+        Jtp=self.constants['Jtp']
+        Ts=self.constants['Ts']
 
         # States: [u,v,w,p,q,r,x,y,z,phi,theta,psi]
-        current_states = states
-        new_states = current_states.copy()
+        current_states=states
+        new_states=current_states
         u = current_states[0]
         v = current_states[1]
         w = current_states[2]
@@ -485,194 +543,208 @@ class SupportFilesDrone:
         phi = current_states[9]
         theta = current_states[10]
         psi = current_states[11]
-
-        sub_loop = self.constants['sub_loop']  # Chop Ts into 5 pieces
-        states_ani = np.zeros((sub_loop, 6))
-        U_ani = np.zeros((sub_loop, 4))
+        sub_loop=self.constants['sub_loop'] # Chop Ts into 5 pieces
+        states_ani=np.zeros((sub_loop,6))
+        U_ani=np.zeros((sub_loop,4))
 
         # Drag force:
-        drag_switch = self.constants['drag_switch']
-        C_D_u = self.constants['C_D_u']
-        C_D_v = self.constants['C_D_v']
-        C_D_w = self.constants['C_D_w']
-        A_u = self.constants['A_u']
-        A_v = self.constants['A_v']
-        A_w = self.constants['A_w']
-        rho = self.constants['rho']
+        drag_switch=self.constants['drag_switch']
+        C_D_u=self.constants['C_D_u']
+        C_D_v=self.constants['C_D_v']
+        C_D_w=self.constants['C_D_w']
+        A_u=self.constants['A_u']
+        A_v=self.constants['A_v']
+        A_w=self.constants['A_w']
+        rho=self.constants['rho']
 
         # Runge-Kutta method
-        u_or = u
-        v_or = v
-        w_or = w
-        p_or = p
-        q_or = q
-        r_or = r
-        x_or = x
-        y_or = y
-        z_or = z
-        phi_or = phi
-        theta_or = theta
-        psi_or = psi
+        u_or=u
+        v_or=v
+        w_or=w
+        p_or=p
+        q_or=q
+        r_or=r
+        x_or=x
+        y_or=y
+        z_or=z
+        phi_or=phi
+        theta_or=theta
+        psi_or=psi
 
-        Ts_pos = 2
+        Ts_pos=2
 
-        for j in range(0, 4):
+        for j in range(0,4):
 
-            if drag_switch == 1:
-                Fd_u = 0.5 * C_D_u * rho * u**2 * A_u
-                Fd_v = 0.5 * C_D_v * rho * v**2 * A_v
-                Fd_w = 0.5 * C_D_w * rho * w**2 * A_w
-            elif drag_switch == 0:
-                Fd_u = Fd_v = Fd_w = 0
+            if drag_switch==1:
+                Fd_u=0.5*C_D_u*rho*u**2*A_u
+                Fd_v=0.5*C_D_v*rho*v**2*A_v
+                Fd_w=0.5*C_D_w*rho*w**2*A_w
+            elif drag_switch==0:
+                Fd_u=0
+                Fd_v=0
+                Fd_w=0
             else:
                 print("drag_switch variable must be either 0 or 1 in the init function")
                 exit()
+            # print(u)
+            # print(v)
 
             # Compute slopes k_x
-            u_dot = (v*r - w*q) + g*np.sin(theta) - Fd_u/m
-            v_dot = (w*p - u*r) - g*np.cos(theta)*np.sin(phi) - Fd_v/m
-            w_dot = (u*q - v*p) - g*np.cos(theta)*np.cos(phi) + U1/m - Fd_w/m
-            p_dot = q*r*(Iy-Iz)/Ix - Jtp/Ix*q*omega_total + U2/Ix
-            q_dot = p*r*(Iz-Ix)/Iy + Jtp/Iy*p*omega_total + U3/Iy
-            r_dot = p*q*(Ix-Iy)/Iz + U4/Iz
+            u_dot=(v*r-w*q)+g*np.sin(theta)-Fd_u/m
+            v_dot=(w*p-u*r)-g*np.cos(theta)*np.sin(phi)-Fd_v/m
+            w_dot=(u*q-v*p)-g*np.cos(theta)*np.cos(phi)+U1/m-Fd_w/m
+            p_dot=q*r*(Iy-Iz)/Ix-Jtp/Ix*q*omega_total+U2/Ix
+            q_dot=p*r*(Iz-Ix)/Iy+Jtp/Iy*p*omega_total+U3/Iy
+            r_dot=p*q*(Ix-Iy)/Iz+U4/Iz
 
             # Get the states in the inertial frame
-            R_x = np.array([[1, 0, 0],[0, np.cos(phi), -np.sin(phi)],[0, np.sin(phi), np.cos(phi)]])
-            R_y = np.array([[np.cos(theta),0,np.sin(theta)],[0,1,0],[-np.sin(theta),0,np.cos(theta)]])
-            R_z = np.array([[np.cos(psi),-np.sin(psi),0],[np.sin(psi),np.cos(psi),0],[0,0,1]])
-            R_matrix = R_z @ R_y @ R_x
-            pos_vel_fixed = R_matrix @ np.array([[u],[v],[w]])
-            x_dot = pos_vel_fixed[0][0]
-            y_dot = pos_vel_fixed[1][0]
-            z_dot = pos_vel_fixed[2][0]
+            # Rotational matrix that relates u,v,w with x_dot,y_dot,z_dot
+            R_x=np.array([[1, 0, 0],[0, np.cos(phi), -np.sin(phi)],[0, np.sin(phi), np.cos(phi)]])
+            R_y=np.array([[np.cos(theta),0,np.sin(theta)],[0,1,0],[-np.sin(theta),0,np.cos(theta)]])
+            R_z=np.array([[np.cos(psi),-np.sin(psi),0],[np.sin(psi),np.cos(psi),0],[0,0,1]])
+            R_matrix=np.matmul(R_z,np.matmul(R_y,R_x))
 
+            pos_vel_body=np.array([[u],[v],[w]])
+            pos_vel_fixed=np.matmul(R_matrix,pos_vel_body)
+            x_dot=pos_vel_fixed[0]
+            y_dot=pos_vel_fixed[1]
+            z_dot=pos_vel_fixed[2]
+            x_dot=x_dot[0]
+            y_dot=y_dot[0]
+            z_dot=z_dot[0]
+
+            # To get phi_dot, theta_dot, psi_dot, you need the T matrix
             # Transformation matrix that relates p,q,r with phi_dot,theta_dot,psi_dot
-            T_matrix = np.array([[1,np.sin(phi)*np.tan(theta),np.cos(phi)*np.tan(theta)],
-                                 [0,np.cos(phi),-np.sin(phi)],
-                                 [0,np.sin(phi)/np.cos(theta),np.cos(phi)/np.cos(theta)]])
-            rot_vel_fixed = T_matrix @ np.array([[p],[q],[r]])
-            phi_dot = rot_vel_fixed[0][0]
-            theta_dot = rot_vel_fixed[1][0]
-            psi_dot = rot_vel_fixed[2][0]
+            T_matrix=np.array([[1,np.sin(phi)*np.tan(theta),np.cos(phi)*np.tan(theta)],\
+                [0,np.cos(phi),-np.sin(phi)],\
+                [0,np.sin(phi)/np.cos(theta),np.cos(phi)/np.cos(theta)]])
+            rot_vel_body=np.array([[p],[q],[r]])
+            rot_vel_fixed=np.matmul(T_matrix,rot_vel_body)
+            phi_dot=rot_vel_fixed[0]
+            theta_dot=rot_vel_fixed[1]
+            psi_dot=rot_vel_fixed[2]
+            phi_dot=phi_dot[0]
+            theta_dot=theta_dot[0]
+            psi_dot=psi_dot[0]
 
             # Save the slopes:
             if j == 0:
-                u_dot_k1 = u_dot
-                v_dot_k1 = v_dot
-                w_dot_k1 = w_dot
-                p_dot_k1 = p_dot
-                q_dot_k1 = q_dot
-                r_dot_k1 = r_dot
-                x_dot_k1 = x_dot
-                y_dot_k1 = y_dot
-                z_dot_k1 = z_dot
-                phi_dot_k1 = phi_dot
-                theta_dot_k1 = theta_dot
-                psi_dot_k1 = psi_dot
+                u_dot_k1=u_dot
+                v_dot_k1=v_dot
+                w_dot_k1=w_dot
+                p_dot_k1=p_dot
+                q_dot_k1=q_dot
+                r_dot_k1=r_dot
+                x_dot_k1=x_dot
+                y_dot_k1=y_dot
+                z_dot_k1=z_dot
+                phi_dot_k1=phi_dot
+                theta_dot_k1=theta_dot
+                psi_dot_k1=psi_dot
             elif j == 1:
-                u_dot_k2 = u_dot
-                v_dot_k2 = v_dot
-                w_dot_k2 = w_dot
-                p_dot_k2 = p_dot
-                q_dot_k2 = q_dot
-                r_dot_k2 = r_dot
-                x_dot_k2 = x_dot
-                y_dot_k2 = y_dot
-                z_dot_k2 = z_dot
-                phi_dot_k2 = phi_dot
-                theta_dot_k2 = theta_dot
-                psi_dot_k2 = psi_dot
+                u_dot_k2=u_dot
+                v_dot_k2=v_dot
+                w_dot_k2=w_dot
+                p_dot_k2=p_dot
+                q_dot_k2=q_dot
+                r_dot_k2=r_dot
+                x_dot_k2=x_dot
+                y_dot_k2=y_dot
+                z_dot_k2=z_dot
+                phi_dot_k2=phi_dot
+                theta_dot_k2=theta_dot
+                psi_dot_k2=psi_dot
             elif j == 2:
-                u_dot_k3 = u_dot
-                v_dot_k3 = v_dot
-                w_dot_k3 = w_dot
-                p_dot_k3 = p_dot
-                q_dot_k3 = q_dot
-                r_dot_k3 = r_dot
-                x_dot_k3 = x_dot
-                y_dot_k3 = y_dot
-                z_dot_k3 = z_dot
-                phi_dot_k3 = phi_dot
-                theta_dot_k3 = theta_dot
-                psi_dot_k3 = psi_dot
-                Ts_pos = 1
-            else:
-                u_dot_k4 = u_dot
-                v_dot_k4 = v_dot
-                w_dot_k4 = w_dot
-                p_dot_k4 = p_dot
-                q_dot_k4 = q_dot
-                r_dot_k4 = r_dot
-                x_dot_k4 = x_dot
-                y_dot_k4 = y_dot
-                z_dot_k4 = z_dot
-                phi_dot_k4 = phi_dot
-                theta_dot_k4 = theta_dot
-                psi_dot_k4 = psi_dot
+                u_dot_k3=u_dot
+                v_dot_k3=v_dot
+                w_dot_k3=w_dot
+                p_dot_k3=p_dot
+                q_dot_k3=q_dot
+                r_dot_k3=r_dot
+                x_dot_k3=x_dot
+                y_dot_k3=y_dot
+                z_dot_k3=z_dot
+                phi_dot_k3=phi_dot
+                theta_dot_k3=theta_dot
+                psi_dot_k3=psi_dot
 
-            if j < 3:
+                Ts_pos=1
+            else:
+                u_dot_k4=u_dot
+                v_dot_k4=v_dot
+                w_dot_k4=w_dot
+                p_dot_k4=p_dot
+                q_dot_k4=q_dot
+                r_dot_k4=r_dot
+                x_dot_k4=x_dot
+                y_dot_k4=y_dot
+                z_dot_k4=z_dot
+                phi_dot_k4=phi_dot
+                theta_dot_k4=theta_dot
+                psi_dot_k4=psi_dot
+
+            if j<3:
                 # New states using k_x
-                u = u_or + u_dot * Ts / Ts_pos
-                v = v_or + v_dot * Ts / Ts_pos
-                w = w_or + w_dot * Ts / Ts_pos
-                p = p_or + p_dot * Ts / Ts_pos
-                q = q_or + q_dot * Ts / Ts_pos
-                r = r_or + r_dot * Ts / Ts_pos
-                x = x_or + x_dot * Ts / Ts_pos
-                y = y_or + y_dot * Ts / Ts_pos
-                z = z_or + z_dot * Ts / Ts_pos
-                phi = phi_or + phi_dot * Ts / Ts_pos
-                theta = theta_or + theta_dot * Ts / Ts_pos
-                psi = psi_or + psi_dot * Ts / Ts_pos
+                u=u_or+u_dot*Ts/Ts_pos
+                v=v_or+v_dot*Ts/Ts_pos
+                w=w_or+w_dot*Ts/Ts_pos
+                p=p_or+p_dot*Ts/Ts_pos
+                q=q_or+q_dot*Ts/Ts_pos
+                r=r_or+r_dot*Ts/Ts_pos
+                x=x_or+x_dot*Ts/Ts_pos
+                y=y_or+y_dot*Ts/Ts_pos
+                z=z_or+z_dot*Ts/Ts_pos
+                phi=phi_or+phi_dot*Ts/Ts_pos
+                theta=theta_or+theta_dot*Ts/Ts_pos
+                psi=psi_or+psi_dot*Ts/Ts_pos
             else:
-                # New states using average k_x (RK4)
-                u = u_or + 1/6 * (u_dot_k1 + 2*u_dot_k2 + 2*u_dot_k3 + u_dot_k4) * Ts
-                v = v_or + 1/6 * (v_dot_k1 + 2*v_dot_k2 + 2*v_dot_k3 + v_dot_k4) * Ts
-                w = w_or + 1/6 * (w_dot_k1 + 2*w_dot_k2 + 2*w_dot_k3 + w_dot_k4) * Ts
-                p = p_or + 1/6 * (p_dot_k1 + 2*p_dot_k2 + 2*p_dot_k3 + p_dot_k4) * Ts
-                q = q_or + 1/6 * (q_dot_k1 + 2*q_dot_k2 + 2*q_dot_k3 + q_dot_k4) * Ts
-                r = r_or + 1/6 * (r_dot_k1 + 2*r_dot_k2 + 2*r_dot_k3 + r_dot_k4) * Ts
-                x = x_or + 1/6 * (x_dot_k1 + 2*x_dot_k2 + 2*x_dot_k3 + x_dot_k4) * Ts
-                y = y_or + 1/6 * (y_dot_k1 + 2*y_dot_k2 + 2*y_dot_k3 + y_dot_k4) * Ts
-                z = z_or + 1/6 * (z_dot_k1 + 2*z_dot_k2 + 2*z_dot_k3 + z_dot_k4) * Ts
-                phi = phi_or + 1/6 * (phi_dot_k1 + 2*phi_dot_k2 + 2*phi_dot_k3 + phi_dot_k4) * Ts
-                theta = theta_or + 1/6 * (theta_dot_k1 + 2*theta_dot_k2 + 2*theta_dot_k3 + theta_dot_k4) * Ts
-                psi = psi_or + 1/6 * (psi_dot_k1 + 2*psi_dot_k2 + 2*psi_dot_k3 + psi_dot_k4) * Ts
+                # New states using average k_x
+                u=u_or+1/6*(u_dot_k1+2*u_dot_k2+2*u_dot_k3+u_dot_k4)*Ts
+                v=v_or+1/6*(v_dot_k1+2*v_dot_k2+2*v_dot_k3+v_dot_k4)*Ts
+                w=w_or+1/6*(w_dot_k1+2*w_dot_k2+2*w_dot_k3+w_dot_k4)*Ts
+                p=p_or+1/6*(p_dot_k1+2*p_dot_k2+2*p_dot_k3+p_dot_k4)*Ts
+                q=q_or+1/6*(q_dot_k1+2*q_dot_k2+2*q_dot_k3+q_dot_k4)*Ts
+                r=r_or+1/6*(r_dot_k1+2*r_dot_k2+2*r_dot_k3+r_dot_k4)*Ts
+                x=x_or+1/6*(x_dot_k1+2*x_dot_k2+2*x_dot_k3+x_dot_k4)*Ts
+                y=y_or+1/6*(y_dot_k1+2*y_dot_k2+2*y_dot_k3+y_dot_k4)*Ts
+                z=z_or+1/6*(z_dot_k1+2*z_dot_k2+2*z_dot_k3+z_dot_k4)*Ts
+                phi=phi_or+1/6*(phi_dot_k1+2*phi_dot_k2+2*phi_dot_k3+phi_dot_k4)*Ts
+                theta=theta_or+1/6*(theta_dot_k1+2*theta_dot_k2+2*theta_dot_k3+theta_dot_k4)*Ts
+                psi=psi_or+1/6*(psi_dot_k1+2*psi_dot_k2+2*psi_dot_k3+psi_dot_k4)*Ts
 
-        # Animation slices
-        for k in range(0, sub_loop):
-            states_ani[k,0] = x_or + (x - x_or) / Ts * (k / (sub_loop - 1)) * Ts
-            states_ani[k,1] = y_or + (y - y_or) / Ts * (k / (sub_loop - 1)) * Ts
-            states_ani[k,2] = z_or + (z - z_or) / Ts * (k / (sub_loop - 1)) * Ts
-            states_ani[k,3] = phi_or + (phi - phi_or) / Ts * (k / (sub_loop - 1)) * Ts
-            states_ani[k,4] = theta_or + (theta - theta_or) / Ts * (k / (sub_loop - 1)) * Ts
-            states_ani[k,5] = psi_or + (psi - psi_or) / Ts * (k / (sub_loop - 1)) * Ts
+        for k in range(0,sub_loop):
+            states_ani[k,0]=x_or+(x-x_or)/Ts*(k/(sub_loop-1))*Ts
+            states_ani[k,1]=y_or+(y-y_or)/Ts*(k/(sub_loop-1))*Ts
+            states_ani[k,2]=z_or+(z-z_or)/Ts*(k/(sub_loop-1))*Ts
+            states_ani[k,3]=phi_or+(phi-phi_or)/Ts*(k/(sub_loop-1))*Ts
+            states_ani[k,4]=theta_or+(theta-theta_or)/Ts*(k/(sub_loop-1))*Ts
+            states_ani[k,5]=psi_or+(psi-psi_or)/Ts*(k/(sub_loop-1))*Ts
 
-        U_ani[:,0] = U1
-        U_ani[:,1] = U2
-        U_ani[:,2] = U3
-        U_ani[:,3] = U4
+        U_ani[:,0]=U1
+        U_ani[:,1]=U2
+        U_ani[:,2]=U3
+        U_ani[:,3]=U4
 
         # End of Runge-Kutta method
 
         # Take the last states
-        new_states[0] = u
-        new_states[1] = v
-        new_states[2] = w
-        new_states[3] = p
-        new_states[4] = q
-        new_states[5] = r
-        new_states[6] = x
-        new_states[7] = y
-        new_states[8] = z
-        new_states[9] = phi
-        new_states[10] = theta
-        new_states[11] = psi
+        new_states[0]=u
+        new_states[1]=v
+        new_states[2]=w
+        new_states[3]=p
+        new_states[4]=q
+        new_states[5]=r
+
+        new_states[6]=x
+        new_states[7]=y
+        new_states[8]=z
+        new_states[9]=phi
+        new_states[10]=theta
+        new_states[11]=psi
 
         return new_states, states_ani, U_ani
 
-
-# ==================== NÓ ROS2 ====================
+# ==================== ROS2 NODE ====================
 class LPVMPC_Drone(Node):
     def __init__(self):
         super().__init__('lpv_mpc_drone_node')
@@ -682,58 +754,58 @@ class LPVMPC_Drone(Node):
 
         self.support = SupportFilesDrone()
 
-        self.states = np.array([0.,0.,0.,0.,0.,0., 0.,0.,1.0, 0.,0.,0.])
-        self.U1 = self.support.constants['m'] * self.support.constants['g']
-        self.U2 = self.U3 = self.U4 = 0.0
+        self.states=np.array([0.,0.,0.,0.,0.,0., 0.,0.,1.0, 0.,0.,0.])
+        self.U1=self.support.constants['m']*self.support.constants['g']
+        self.U2=self.U3 = self.U4 = 0.0
 
-        # === SUA TRAJETÓRIA EXATA COM 4 PONTOS ===
+        # ==== TRAJECTORY DEFINITION ====
         self.waypoints = np.array([
             [0.0, 0.0, 2.0],
             [3.0, 3.0, 4.0],
             [6.0, 1.0, 2.0],
-            [0.0, 0.0, 2.0]
+            [0.0, 0.0, 2.0] # return to the starting point for a closed loop trajectory
         ])
+        # ===============================
 
-        t_total = 180.0
-        num_samples = 1800
-        t = np.linspace(0, t_total, num_samples)
+        t_total=180.0
+        num_samples=1800
+        t=np.linspace(0,t_total,num_samples)
 
-        seg = np.linspace(0, 1, num_samples//4, endpoint=False)
-        x = np.concatenate([np.interp(seg, [0,1], [self.waypoints[i,0], self.waypoints[(i+1)%4,0]]) for i in range(4)])
-        y = np.concatenate([np.interp(seg, [0,1], [self.waypoints[i,1], self.waypoints[(i+1)%4,1]]) for i in range(4)])
-        z = np.concatenate([np.interp(seg, [0,1], [self.waypoints[i,2], self.waypoints[(i+1)%4,2]]) for i in range(4)])
+        seg=np.linspace(0,1,num_samples//4,endpoint=False)
+        x=np.concatenate([np.interp(seg,[0,1],[self.waypoints[i,0],self.waypoints[(i+1)%4,0]]) for i in range(4)])
+        y=np.concatenate([np.interp(seg,[0,1],[self.waypoints[i,1],self.waypoints[(i+1)%4,1]]) for i in range(4)])
+        z=np.concatenate([np.interp(seg,[0,1],[self.waypoints[i,2],self.waypoints[(i+1)%4,2]]) for i in range(4)])
 
-        self.X_ref = x
-        self.Y_ref = y
-        self.Z_ref = z
+        self.X_ref=x
+        self.Y_ref=y
+        self.Z_ref=z
 
-        dt = t[1] - t[0]
-        self.Xd_ref = np.gradient(x, dt)
-        self.Yd_ref = np.gradient(y, dt)
-        self.Zd_ref = np.gradient(z, dt)
-        self.Xdd_ref = np.gradient(self.Xd_ref, dt)
-        self.Ydd_ref = np.gradient(self.Yd_ref, dt)
-        self.Zdd_ref = np.gradient(self.Zd_ref, dt)
+        dt=t[1]-t[0]
+        self.Xd_ref=np.gradient(x,dt)
+        self.Yd_ref=np.gradient(y,dt)
+        self.Zd_ref=np.gradient(z,dt)
+        self.Xdd_ref=np.gradient(self.Xd_ref,dt)
+        self.Ydd_ref=np.gradient(self.Yd_ref,dt)
+        self.Zdd_ref=np.gradient(self.Zd_ref,dt)
         
-        # Calcula psi a partir da direção do movimento
-        self.psi_ref = np.arctan2(self.Yd_ref, self.Xd_ref)
-        self.psi_ref = np.unwrap(self.psi_ref)
+        # Calculate psi from the direction of movement
+        self.psi_ref=np.arctan2(self.Yd_ref,self.Xd_ref)
+        self.psi_ref=np.unwrap(self.psi_ref)
         
-        # ========== NOVAS VARIÁVEIS DE CONTROLE DE TEMPO ==========
-        self.dt_traj = dt                # 0.1 s
+        # New Time Control Variables
+        self.dt_traj = dt # 0.1 s
         self.start_time = self.get_clock().now()
         self.last_time = self.get_clock().now()
         self.ref_frac = 0.0
-        # ==========================================================
         
-        # self.ref_idx = 0
+        # self.ref_idx=0
 
         qos = QoSProfile(depth=10, reliability=ReliabilityPolicy.BEST_EFFORT)
         self.create_subscription(Odometry, f'/{uav}/mavros/local_position/odom', self.odom_cb, qos)
         self.att_pub = self.create_publisher(AttitudeTarget, f'/{uav}/mavros/setpoint_raw/attitude', 10)
 
         self.timer = self.create_timer(0.05, self.control_loop)
-        self.get_logger().info("LPV-MPC carregado — seguindo seus 4 waypoints!")
+        self.get_logger().info("LPV-MPC loaded.")
 
     def odom_cb(self, msg):
         p = msg.pose.pose.position
@@ -749,67 +821,83 @@ class LPVMPC_Drone(Node):
         
 
     def control_loop(self):
-        now = self.get_clock().now()
-        elapsed = (now - self.start_time).nanoseconds / 1e9
-        # Índice fracionário (avança na trajetória)
-        self.ref_frac = (elapsed / self.dt_traj) % len(self.X_ref)
-        idx = int(self.ref_frac)
-        frac = self.ref_frac - idx
+        now=self.get_clock().now()
+        elapsed=(now - self.start_time).nanoseconds/1e9
+        # Fractional index (advances along the trajectory)
+        self.ref_frac=(elapsed/self.dt_traj)%len(self.X_ref)
+        idx=int(self.ref_frac)
+        frac=self.ref_frac-idx
 
-        # Função auxiliar para interpolação linear
+        # Auxiliary function for linear interpolation
         def interp(arr, idx, frac):
             n = len(arr)
-            return arr[idx] * (1 - frac) + arr[(idx + 1) % n] * frac
+            return arr[idx]*(1-frac)+arr[(idx+1)%n]*frac
 
-        # Interpola todas as referências
-        X_ref = interp(self.X_ref, idx, frac)
-        Y_ref = interp(self.Y_ref, idx, frac)
-        Z_ref = interp(self.Z_ref, idx, frac)
-        Xd_ref = interp(self.Xd_ref, idx, frac)
-        Yd_ref = interp(self.Yd_ref, idx, frac)
-        Zd_ref = interp(self.Zd_ref, idx, frac)
-        Xdd_ref = interp(self.Xdd_ref, idx, frac)
-        Ydd_ref = interp(self.Ydd_ref, idx, frac)
-        Zdd_ref = interp(self.Zdd_ref, idx, frac)
-        psi_ref = interp(self.psi_ref, idx, frac)
+        # Interpolates all references
+        X_ref=interp(self.X_ref,idx,frac)
+        Y_ref=interp(self.Y_ref,idx,frac)
+        Z_ref=interp(self.Z_ref,idx,frac)
+        Xd_ref=interp(self.Xd_ref,idx,frac)
+        Yd_ref=interp(self.Yd_ref,idx,frac)
+        Zd_ref=interp(self.Zd_ref,idx,frac)
+        Xdd_ref=interp(self.Xdd_ref,idx,frac)
+        Ydd_ref=interp(self.Ydd_ref,idx,frac)
+        Zdd_ref=interp(self.Zdd_ref,idx,frac)
+        psi_ref=interp(self.psi_ref,idx,frac)
 
-        # Chama o controlador de posição
+        # Calls the position controller
         phi_ref, theta_ref, U1_new = self.support.pos_controller(
-            X_ref, Xd_ref, Xdd_ref,
-            Y_ref, Yd_ref, Ydd_ref,
-            Z_ref, Zd_ref, Zdd_ref,
-            psi_ref, self.states)
+            X_ref,Xd_ref,Xdd_ref,
+            Y_ref,Yd_ref,Ydd_ref,
+            Z_ref,Zd_ref,Zdd_ref,
+            psi_ref,self.states)
 
-        # Inversão de sinal (se necessário)
+        # Invert the sign (if necessary)
         if self.get_parameter('invert_attitude').value:
             phi_ref = -phi_ref
             theta_ref = -theta_ref
 
-        # Limita ângulos
-        phi_ref = np.clip(phi_ref, -0.5, 0.5)
-        theta_ref = np.clip(theta_ref, -0.5, 0.5)
+        # Limits angles
+        phi_ref = np.clip(phi_ref,-0.5,0.5)
+        theta_ref = np.clip(theta_ref,-0.5,0.5)
 
-        # Publica comando de atitude
+        # Publish attitude command
         att = AttitudeTarget()
         att.header.stamp = now.to_msg()
-        att.type_mask = (AttitudeTarget.IGNORE_ROLL_RATE +
+        att.type_mask=(AttitudeTarget.IGNORE_ROLL_RATE +
                         AttitudeTarget.IGNORE_PITCH_RATE +
                         AttitudeTarget.IGNORE_YAW_RATE)
-        att.thrust = np.clip(U1_new / self.support.constants['max_thrust'], 0.0, 1.0)
+        att.thrust = float(np.clip(float(U1_new) / float(self.support.constants['max_thrust']),0.0,1.0))
 
         from tf_transformations import quaternion_from_euler
-        q = quaternion_from_euler(phi_ref, theta_ref, psi_ref)
-        att.orientation.x = q[0]
-        att.orientation.y = q[1]
-        att.orientation.z = q[2]
-        att.orientation.w = q[3]
+        q = quaternion_from_euler(
+            float(phi_ref),
+            float(theta_ref),
+            float(psi_ref)
+        )
+
+        att.orientation.x = float(q[0])
+        att.orientation.y = float(q[1])
+        att.orientation.z = float(q[2])
+        att.orientation.w = float(q[3])
 
         self.att_pub.publish(att)
+        
+        # Calculates the position error
+        err_x = X_ref - self.states[6]
+        err_y = Y_ref - self.states[7]
+        err_z = Z_ref - self.states[8]
 
-        # Opcional: log para depuração
-        # self.get_logger().info(f"X_ref: {X_ref:.2f}  X_actual: {self.states[6]:.2f}, Y_ref: {Y_ref:.2f}  Y_actual: {self.states[7]:.2f}, Z_ref: {Z_ref:.2f}  Z_actual: {self.states[8]:.2f}")
-
-        self.get_logger().info(f"U1: {U1_new:.2f} N, throttle: {U1_new/self.support.constants['max_thrust']:.2f}")
+        # Optional: debug log every 0.5 seconds
+        self.get_logger().info(
+            f"\n"
+            f"        | {'X':^12} | {'Y':^12} | {'Z':^12}\n"
+            f"  POS   | {self.states[6]:+12.2f} | {self.states[7]:+12.2f} | {self.states[8]:+12.2f}\n"
+            f"  REF   | {X_ref:+12.2f} | {Y_ref:+12.2f} | {Z_ref:+12.2f}\n"
+            f"  ERR   | {err_x:+12.2f} | {err_y:+12.2f} | {err_z:+12.2f}\n"
+            f"  THRUST: {att.thrust:.5f}",
+            throttle_duration_sec=0.5
+        )
         
 def main(args=None):
     rclpy.init(args=args)
