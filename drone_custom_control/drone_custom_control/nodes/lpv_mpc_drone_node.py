@@ -12,7 +12,7 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy
 import numpy as np
 from nav_msgs.msg import Odometry
 from mavros_msgs.msg import AttitudeTarget
-
+from scipy.interpolate import CubicSpline
 
 class SupportFilesDrone:
     def __init__(self):
@@ -42,14 +42,14 @@ class SupportFilesDrone:
         l=0.225 # m
 
         controlled_states=3 # Number of attitude outputs: Phi, Theta, Psi
-        hz = 4 # horizon period
         
+        hz=4 # horizon period
         innerDyn_length=4 # Number of inner control loop iterations
 
         # Complex poles
-        px=np.array([-1.8+1.5j,-1.8-1.5j])
-        py=np.array([-1.8+1.5j,-1.8-1.5j])
-        pz=np.array([-5.5+3.2j,-5.5-3.2j])
+        px=np.array([-1.75+1.78j,-1.75-1.78j])
+        py=np.array([-1.75+1.78j,-1.75-1.78j])
+        pz=np.array([-4.0+3.5j,-4.0-3.5j])
 
         r=2
         f=0.025
@@ -333,9 +333,9 @@ class SupportFilesDrone:
         uy=ky1*ey+ky2*ey_dot
         uz=kz1*ez+kz2*ez_dot
 
-        vx = X_dot_dot_ref-ux
-        vy = Y_dot_dot_ref-uy
-        vz = Z_dot_dot_ref-uz
+        vx = X_dot_dot_ref-ux[0]
+        vy = Y_dot_dot_ref-uy[0]
+        vz = Z_dot_dot_ref-uz[0]
 
         # Compute phi, theta, U1
         a=vx/(vz+g)
@@ -753,6 +753,11 @@ class LPVMPC_Drone(Node):
         uav = self.get_parameter('uav_name').value
 
         self.support = SupportFilesDrone()
+        
+        self.hz = self.support.constants['hz']                     # horizonte = 4
+        self.innerDyn_length = self.support.constants['innerDyn_length']   # = 4
+        self.Ts = self.support.constants['Ts']                     # 0.1 s
+        self.omega_total = 0.0                                     # termo giroscópico (pode ser zero)
 
         self.states=np.array([0.,0.,0.,0.,0.,0., 0.,0.,1.0, 0.,0.,0.])
         self.U1=self.support.constants['m']*self.support.constants['g']
@@ -767,23 +772,26 @@ class LPVMPC_Drone(Node):
         ])
         # ===============================
 
-        t_total=180.0
-        num_samples=1800
-        t=np.linspace(0,t_total,num_samples)
+        T_total = 50.0          # ← ajuste aqui (20s = muito agressivo, 45s = confortável)
+        n_way = len(self.waypoints)
+        t_way = np.linspace(0, T_total, n_way, endpoint=False)
+        t_way_closed = np.append(t_way, T_total)
+        waypoints_closed = np.vstack([self.waypoints, self.waypoints[0]])
 
-        seg=np.linspace(0,1,num_samples//4,endpoint=False)
-        x=np.concatenate([np.interp(seg,[0,1],[self.waypoints[i,0],self.waypoints[(i+1)%4,0]]) for i in range(4)])
-        y=np.concatenate([np.interp(seg,[0,1],[self.waypoints[i,1],self.waypoints[(i+1)%4,1]]) for i in range(4)])
-        z=np.concatenate([np.interp(seg,[0,1],[self.waypoints[i,2],self.waypoints[(i+1)%4,2]]) for i in range(4)])
+        # Splines cúbicas com velocidade de entrada mais alta
+        cs_x = CubicSpline(t_way_closed, waypoints_closed[:,0], bc_type='periodic')
+        cs_y = CubicSpline(t_way_closed, waypoints_closed[:,1], bc_type='periodic')
+        cs_z = CubicSpline(t_way_closed, waypoints_closed[:,2], bc_type='periodic')
 
-        self.X_ref=x
-        self.Y_ref=y
-        self.Z_ref=z
+        t = np.linspace(0, T_total, int(T_total/self.Ts)+1)   # Ts = 0.1 s
+        self.X_ref = cs_x(t)
+        self.Y_ref = cs_y(t)
+        self.Z_ref = cs_z(t)
 
         dt=t[1]-t[0]
-        self.Xd_ref=np.gradient(x,dt)
-        self.Yd_ref=np.gradient(y,dt)
-        self.Zd_ref=np.gradient(z,dt)
+        self.Xd_ref=np.gradient(self.X_ref,dt)
+        self.Yd_ref=np.gradient(self.Y_ref,dt)
+        self.Zd_ref=np.gradient(self.Z_ref,dt)
         self.Xdd_ref=np.gradient(self.Xd_ref,dt)
         self.Ydd_ref=np.gradient(self.Yd_ref,dt)
         self.Zdd_ref=np.gradient(self.Zd_ref,dt)
@@ -804,12 +812,13 @@ class LPVMPC_Drone(Node):
         self.create_subscription(Odometry, f'/{uav}/mavros/local_position/odom', self.odom_cb, qos)
         self.att_pub = self.create_publisher(AttitudeTarget, f'/{uav}/mavros/setpoint_raw/attitude', 10)
 
-        self.timer = self.create_timer(0.05, self.control_loop)
+        self.timer = self.create_timer(0.1, self.control_loop)
         self.get_logger().info("LPV-MPC loaded.")
 
     def odom_cb(self, msg):
         p = msg.pose.pose.position
-        v = msg.twist.twist.linear
+        v_linear = msg.twist.twist.linear
+        v_angular = msg.twist.twist.angular   # <-- taxa angular
         q = msg.pose.pose.orientation
         qw = np.array([q.x, q.y, q.z, q.w])
         if qw[3] < 0:
@@ -817,78 +826,116 @@ class LPVMPC_Drone(Node):
         phi = np.arctan2(2*(qw[3]*qw[0] + qw[1]*qw[2]), 1 - 2*(qw[0]**2 + qw[1]**2))
         theta = np.arcsin(2*(qw[3]*qw[1] - qw[2]*qw[0]))
         psi = np.arctan2(2*(qw[3]*qw[2] + qw[0]*qw[1]), 1 - 2*(qw[1]**2 + qw[2]**2))
-        self.states = np.array([v.x, v.y, v.z, 0., 0., 0., p.x, p.y, p.z, phi, theta, psi])
+        self.states = np.array([v_linear.x, v_linear.y, v_linear.z,
+                                v_angular.x, v_angular.y, v_angular.z,   # <-- p, q, r
+                                p.x, p.y, p.z, phi, theta, psi])
         
 
     def control_loop(self):
-        now=self.get_clock().now()
-        elapsed=(now - self.start_time).nanoseconds/1e9
-        # Fractional index (advances along the trajectory)
-        self.ref_frac=(elapsed/self.dt_traj)%len(self.X_ref)
-        idx=int(self.ref_frac)
-        frac=self.ref_frac-idx
+        now = self.get_clock().now()
+        elapsed = (now - self.start_time).nanoseconds / 1e9
+        self.ref_frac = (elapsed / self.dt_traj) % len(self.X_ref)
+        idx = int(self.ref_frac)
+        frac = self.ref_frac - idx
 
-        # Auxiliary function for linear interpolation
         def interp(arr, idx, frac):
             n = len(arr)
-            return arr[idx]*(1-frac)+arr[(idx+1)%n]*frac
+            return arr[idx] * (1 - frac) + arr[(idx + 1) % n] * frac
 
-        # Interpolates all references
-        X_ref=interp(self.X_ref,idx,frac)
-        Y_ref=interp(self.Y_ref,idx,frac)
-        Z_ref=interp(self.Z_ref,idx,frac)
-        Xd_ref=interp(self.Xd_ref,idx,frac)
-        Yd_ref=interp(self.Yd_ref,idx,frac)
-        Zd_ref=interp(self.Zd_ref,idx,frac)
-        Xdd_ref=interp(self.Xdd_ref,idx,frac)
-        Ydd_ref=interp(self.Ydd_ref,idx,frac)
-        Zdd_ref=interp(self.Zdd_ref,idx,frac)
-        psi_ref=interp(self.psi_ref,idx,frac)
+        X_ref = interp(self.X_ref, idx, frac)
+        Y_ref = interp(self.Y_ref, idx, frac)
+        Z_ref = interp(self.Z_ref, idx, frac)
+        Xd_ref = interp(self.Xd_ref, idx, frac)
+        Yd_ref = interp(self.Yd_ref, idx, frac)
+        Zd_ref = interp(self.Zd_ref, idx, frac)
+        Xdd_ref = interp(self.Xdd_ref, idx, frac)
+        Ydd_ref = interp(self.Ydd_ref, idx, frac)
+        Zdd_ref = interp(self.Zdd_ref, idx, frac)
+        psi_ref = interp(self.psi_ref, idx, frac)
 
-        # Calls the position controller
+        # 1) Controlador de posição (gera ângulos de referência e U1)
         phi_ref, theta_ref, U1_new = self.support.pos_controller(
-            X_ref,Xd_ref,Xdd_ref,
-            Y_ref,Yd_ref,Ydd_ref,
-            Z_ref,Zd_ref,Zdd_ref,
-            psi_ref,self.states)
+            X_ref, Xd_ref, Xdd_ref,
+            Y_ref, Yd_ref, Ydd_ref,
+            Z_ref, Zd_ref, Zdd_ref,
+            psi_ref, self.states)
+        
+        U1_new = float(U1_new)
 
-        # Invert the sign (if necessary)
+        # 2) Inversão de sinal (se necessário)
         if self.get_parameter('invert_attitude').value:
             phi_ref = -phi_ref
             theta_ref = -theta_ref
 
-        # Limits angles
-        phi_ref = np.clip(phi_ref,-0.5,0.5)
-        theta_ref = np.clip(theta_ref,-0.5,0.5)
+        # 3) Limite de ângulos (evitar valores extremos)
+        phi_ref = np.clip(phi_ref, -0.7, 0.7)
+        theta_ref = np.clip(theta_ref, -0.7, 0.7)
+        
+        phi_ref = float(phi_ref)
+        theta_ref = float(theta_ref)
+        psi_ref = float(psi_ref)
 
-        # Publish attitude command
+        # ========== INNER MPC LOOP ==========
+        refSignals = np.array([phi_ref, theta_ref, psi_ref])
+        stacked_ref = np.tile(refSignals, self.hz)
+
+        for _ in range(self.innerDyn_length):
+            Ad, Bd, Cd, Dd, _, _, _, _, _, _, _, _, _ = self.support.LPV_cont_discrete(self.states, self.omega_total)
+            Hdb, Fdbt, _, _ = self.support.mpc_simplification(Ad, Bd, Cd, Dd, self.hz)
+
+            x_aug_t = np.array([self.states[9], self.states[3], self.states[10],
+                                self.states[4], self.states[11], self.states[5],
+                                self.U2, self.U3, self.U4])
+            extended = np.concatenate((x_aug_t, stacked_ref))
+            ft = extended @ Fdbt
+            du = -np.linalg.inv(Hdb) @ ft.reshape(-1, 1)
+
+            self.U2 = float(self.U2 + du[0, 0])   # <-- convertido
+            self.U3 = float(self.U3 + du[1, 0])
+            self.U4 = float(self.U4 + du[2, 0])
+
+        # Limite dos torques (adicionar)
+        self.U2 = np.clip(self.U2, -1.0, 1.0)
+        self.U3 = np.clip(self.U3, -1.0, 1.0)
+        self.U4 = np.clip(self.U4, -1.0, 1.0)
+
+        # ========== CONVERTE TORQUES PARA TAXAS DESEJADAS ==========
+        Ix = self.support.constants['Ix']
+        Iy = self.support.constants['Iy']
+        Iz = self.support.constants['Iz']
+        dt = self.Ts
+
+        p_dot_des = self.U2 / Ix
+        q_dot_des = self.U3 / Iy
+        r_dot_des = self.U4 / Iz
+
+        p_des = float(self.states[3] + p_dot_des * dt)   # <-- convertido
+        q_des = float(self.states[4] + q_dot_des * dt)
+        r_des = float(self.states[5] + r_dot_des * dt)
+
+        # ========== PUBLICA COMANDO DE TAXA ==========
         att = AttitudeTarget()
         att.header.stamp = now.to_msg()
-        att.type_mask=(AttitudeTarget.IGNORE_ROLL_RATE +
-                        AttitudeTarget.IGNORE_PITCH_RATE +
-                        AttitudeTarget.IGNORE_YAW_RATE)
-        att.thrust = float(np.clip(float(U1_new) / float(self.support.constants['max_thrust']),0.0,1.0))
+        # Ignora orientação (usamos apenas taxas)
+        att.type_mask = AttitudeTarget.IGNORE_ATTITUDE
+        att.thrust = np.clip(U1_new / self.support.constants['max_thrust'], 0.0, 1.0)
+        att.body_rate.x = float(p_des)
+        att.body_rate.y = float(q_des)
+        att.body_rate.z = float(r_des)
 
-        from tf_transformations import quaternion_from_euler
-        q = quaternion_from_euler(
-            float(phi_ref),
-            float(theta_ref),
-            float(psi_ref)
-        )
-
-        att.orientation.x = float(q[0])
-        att.orientation.y = float(q[1])
-        att.orientation.z = float(q[2])
-        att.orientation.w = float(q[3])
+        # A orientação pode ser qualquer valor (não será usada)
+        att.orientation.w=1.0
+        att.orientation.x=0.0
+        att.orientation.y=0.0
+        att.orientation.z=0.0
 
         self.att_pub.publish(att)
-        
-        # Calculates the position error
-        err_x = X_ref - self.states[6]
-        err_y = Y_ref - self.states[7]
-        err_z = Z_ref - self.states[8]
 
-        # Optional: debug log every 0.5 seconds
+        # Log opcional
+        err_x=X_ref-self.states[6]
+        err_y=Y_ref-self.states[7]
+        err_z=Z_ref-self.states[8]
+        
         self.get_logger().info(
             f"\n"
             f"        | {'X':^12} | {'Y':^12} | {'Z':^12}\n"
