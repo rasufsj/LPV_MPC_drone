@@ -42,14 +42,14 @@ class SupportFilesDrone:
         l=0.225 # m
 
         controlled_states=3 # Number of attitude outputs: Phi, Theta, Psi
+        hz = 4 # horizon period
         
-        hz=4 # horizon period
         innerDyn_length=4 # Number of inner control loop iterations
 
         # Complex poles
         px=np.array([-1.75+1.78j,-1.75-1.78j])
         py=np.array([-1.75+1.78j,-1.75-1.78j])
-        pz=np.array([-4.0+3.5j,-4.0-3.5j])
+        pz=np.array([-2.0+1.5j,-2.0-1.5j])
 
         r=2
         f=0.025
@@ -333,9 +333,9 @@ class SupportFilesDrone:
         uy=ky1*ey+ky2*ey_dot
         uz=kz1*ez+kz2*ez_dot
 
-        vx = X_dot_dot_ref-ux[0]
-        vy = Y_dot_dot_ref-uy[0]
-        vz = Z_dot_dot_ref-uz[0]
+        vx = X_dot_dot_ref-ux
+        vy = Y_dot_dot_ref-uy
+        vz = Z_dot_dot_ref-uz
 
         # Compute phi, theta, U1
         a=vx/(vz+g)
@@ -772,26 +772,36 @@ class LPVMPC_Drone(Node):
         ])
         # ===============================
 
-        T_total = 50.0          # ← ajuste aqui (20s = muito agressivo, 45s = confortável)
+        t_total=180.0
+        num_samples=1800
+        t=np.linspace(0,t_total,num_samples)
+
+        # Define os tempos para os waypoints (igualmente espaçados)
         n_way = len(self.waypoints)
-        t_way = np.linspace(0, T_total, n_way, endpoint=False)
-        t_way_closed = np.append(t_way, T_total)
+        t_way = np.linspace(0, t_total, n_way, endpoint=False)
+
+        # Para uma trajetória fechada, repetimos o primeiro waypoint no final
+        t_way_closed = np.append(t_way, t_total)
         waypoints_closed = np.vstack([self.waypoints, self.waypoints[0]])
 
-        # Splines cúbicas com velocidade de entrada mais alta
+        # Cria as splines cúbicas com condições de contorno periódicas
         cs_x = CubicSpline(t_way_closed, waypoints_closed[:,0], bc_type='periodic')
         cs_y = CubicSpline(t_way_closed, waypoints_closed[:,1], bc_type='periodic')
         cs_z = CubicSpline(t_way_closed, waypoints_closed[:,2], bc_type='periodic')
 
-        t = np.linspace(0, T_total, int(T_total/self.Ts)+1)   # Ts = 0.1 s
-        self.X_ref = cs_x(t)
-        self.Y_ref = cs_y(t)
-        self.Z_ref = cs_z(t)
+        # Avalia nos pontos de tempo desejados
+        x = cs_x(t)
+        y = cs_y(t)
+        z = cs_z(t)
+
+        self.X_ref = x
+        self.Y_ref = y
+        self.Z_ref = z
 
         dt=t[1]-t[0]
-        self.Xd_ref=np.gradient(self.X_ref,dt)
-        self.Yd_ref=np.gradient(self.Y_ref,dt)
-        self.Zd_ref=np.gradient(self.Z_ref,dt)
+        self.Xd_ref=np.gradient(x,dt)
+        self.Yd_ref=np.gradient(y,dt)
+        self.Zd_ref=np.gradient(z,dt)
         self.Xdd_ref=np.gradient(self.Xd_ref,dt)
         self.Ydd_ref=np.gradient(self.Yd_ref,dt)
         self.Zdd_ref=np.gradient(self.Zd_ref,dt)
@@ -924,24 +934,19 @@ class LPVMPC_Drone(Node):
         att.body_rate.z = float(r_des)
 
         # A orientação pode ser qualquer valor (não será usada)
-        att.orientation.w=1.0
-        att.orientation.x=0.0
-        att.orientation.y=0.0
-        att.orientation.z=0.0
+        att.orientation.w = 1.0
+        att.orientation.x = 0.0
+        att.orientation.y = 0.0
+        att.orientation.z = 0.0
 
         self.att_pub.publish(att)
 
         # Log opcional
-        err_x=X_ref-self.states[6]
-        err_y=Y_ref-self.states[7]
-        err_z=Z_ref-self.states[8]
-        
         self.get_logger().info(
             f"\n"
             f"        | {'X':^12} | {'Y':^12} | {'Z':^12}\n"
             f"  POS   | {self.states[6]:+12.2f} | {self.states[7]:+12.2f} | {self.states[8]:+12.2f}\n"
             f"  REF   | {X_ref:+12.2f} | {Y_ref:+12.2f} | {Z_ref:+12.2f}\n"
-            f"  ERR   | {err_x:+12.2f} | {err_y:+12.2f} | {err_z:+12.2f}\n"
             f"  THRUST: {att.thrust:.5f}",
             throttle_duration_sec=0.5
         )
