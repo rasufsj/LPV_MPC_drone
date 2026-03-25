@@ -43,13 +43,13 @@ class SupportFilesDrone:
 
         controlled_states=3 # Number of attitude outputs: Phi, Theta, Psi
         
-        hz = 4 # horizon period
+        hz=4 # horizon period
         innerDyn_length=4 # Number of inner control loop iterations
 
         # Complex poles
         px=np.array([-1.75+1.78j,-1.75-1.78j])
         py=np.array([-1.75+1.78j,-1.75-1.78j])
-        pz=np.array([-2.0+1.5j,-2.0-1.5j])
+        pz=np.array([-5.5+4.0j,-5.5-4.0j])
 
         r=2
         f=0.025
@@ -878,8 +878,8 @@ class LPVMPC_Drone(Node):
             theta_ref = -theta_ref
 
         # 3) Limite de ângulos (evitar valores extremos)
-        phi_ref = np.clip(phi_ref, -0.7, 0.7)
-        theta_ref = np.clip(theta_ref, -0.7, 0.7)
+        phi_ref = np.clip(phi_ref, -0.5, 0.5)
+        theta_ref = np.clip(theta_ref, -0.5, 0.5)
         
         phi_ref = float(phi_ref)
         theta_ref = float(theta_ref)
