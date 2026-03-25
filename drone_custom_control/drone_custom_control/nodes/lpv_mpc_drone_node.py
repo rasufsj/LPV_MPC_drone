@@ -42,8 +42,8 @@ class SupportFilesDrone:
         l=0.225 # m
 
         controlled_states=3 # Number of attitude outputs: Phi, Theta, Psi
-        hz = 4 # horizon period
         
+        hz = 4 # horizon period
         innerDyn_length=4 # Number of inner control loop iterations
 
         # Complex poles
@@ -333,9 +333,9 @@ class SupportFilesDrone:
         uy=ky1*ey+ky2*ey_dot
         uz=kz1*ez+kz2*ez_dot
 
-        vx = X_dot_dot_ref-ux
-        vy = Y_dot_dot_ref-uy
-        vz = Z_dot_dot_ref-uz
+        vx = X_dot_dot_ref-ux[0]
+        vy = Y_dot_dot_ref-uy[0]
+        vz = Z_dot_dot_ref-uz[0]
 
         # Compute phi, theta, U1
         a=vx/(vz+g)
@@ -928,7 +928,8 @@ class LPVMPC_Drone(Node):
         att.header.stamp = now.to_msg()
         # Ignora orientação (usamos apenas taxas)
         att.type_mask = AttitudeTarget.IGNORE_ATTITUDE
-        att.thrust = np.clip(U1_new / self.support.constants['max_thrust'], 0.0, 1.0)
+        max_thrust = self.support.constants['max_thrust']  # 40.18 N
+        att.thrust = np.clip(U1_new / max_thrust, 0.0, 1.0)
         att.body_rate.x = float(p_des)
         att.body_rate.y = float(q_des)
         att.body_rate.z = float(r_des)
@@ -942,12 +943,16 @@ class LPVMPC_Drone(Node):
         self.att_pub.publish(att)
 
         # Log opcional
+        err_x=X_ref-self.states[6]
+        err_y=Y_ref-self.states[7]
+        err_z=Z_ref-self.states[8]
+        
         self.get_logger().info(
             f"\n"
-            f"        | {'X':^12} | {'Y':^12} | {'Z':^12}\n"
-            f"  POS   | {self.states[6]:+12.2f} | {self.states[7]:+12.2f} | {self.states[8]:+12.2f}\n"
-            f"  REF   | {X_ref:+12.2f} | {Y_ref:+12.2f} | {Z_ref:+12.2f}\n"
-            f"  THRUST: {att.thrust:.5f}",
+            f"[POS] X:{self.states[6]:+6.2f}  Y:{self.states[7]:+6.2f}  Z:{self.states[8]:+6.2f}\n"
+            f"[REF] X:{X_ref:+6.2f}  Y:{Y_ref:+6.2f}  Z:{Z_ref:+6.2f}\n"
+            f"[ERR] X:{err_x:+6.2f}  Y:{err_y:+6.2f}  Z:{err_z:+6.2f}\n"
+            f"[THR] {att.thrust:.4f}",
             throttle_duration_sec=0.5
         )
         
